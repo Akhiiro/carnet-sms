@@ -77,7 +77,7 @@ textarea{min-height:96px}
     <div class="bar"><i id="fill" style="width:0%"></i></div>
     <div class="tally" id="tally"></div>
   </section>
-  <div class="banner" id="demo" hidden>Ce sont des fiches d'exemple. Importe ton CSV en bas de page pour les remplacer.</div>
+  <div class="banner" id="demo" hidden>Fiches d'EXEMPLE avec des numéros fictifs : ne pas envoyer. Importe ton CSV en bas de page pour les remplacer.</div>
 
   <nav class="tabs" id="tabs" aria-label="Filtrer"></nav>
   <main id="list"></main>
@@ -106,7 +106,7 @@ textarea{min-height:96px}
 {
 const S={rows:[],filter:"envoyer",set:{tpl1:"Bonjour, c'est bien {entreprise} ?",tpl2:"Merci ! Je suis Mathis, de {agence}. Quand vous êtes sur un chantier et que ça sonne, qui décroche ? J'installe un assistant qui répond à votre place, prend la demande et cale le RDV. Je vous appelle 10 min cette semaine pour vous montrer ? (stop si pas intéressé)",agence:"[agence]",quota:20},demo:true,col:null,setRef:null,ios:!/Android/i.test(navigator.userAgent)};
 const STATUS=[["envoyer","À envoyer"],["envoye","Envoyé"],["repondu","A répondu"],["interesse","Intéressé"],["stop","Stop / refus"]];
-const DEMO=[["Plomberie Durand","Villefranche-sur-Saône","Julien","Durand","0612345678"],["Chauffage Bernard SARL","Anse","Sophie","Bernard","0623456789"],["Élec Saône Services","Belleville-en-Beaujolais","Karim","Haddad","0734567890"],["Toitures du Val","Trévoux","Pierre","Morel","0645678901"],["Thermique Lyon Nord","Neuville-sur-Saône","Claire","Fontaine","0756789012"]].map((r,i)=>({id:"demo"+i,ent:r[0],ville:r[1],prenom:r[2],nom:r[3],tel:r[4],status:i==1?"envoye":i==2?"repondu":"envoyer",sentAt:i==1?Date.now():null}));
+const DEMO=[["Plomberie Durand","Villefranche-sur-Saône","Julien","Durand","0639980001"],["Chauffage Bernard SARL","Anse","Sophie","Bernard","0639980002"],["Élec Saône Services","Belleville-en-Beaujolais","Karim","Haddad","0639980003"],["Toitures du Val","Trévoux","Pierre","Morel","0639980004"],["Thermique Lyon Nord","Neuville-sur-Saône","Claire","Fontaine","0639980005"]].map((r,i)=>({id:"demo"+i,ent:r[0],ville:r[1],prenom:r[2],nom:r[3],tel:r[4],status:i==1?"envoye":i==2?"repondu":"envoyer",sentAt:i==1?Date.now():null}));
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const day=t=>{const d=new Date(t);return d.getFullYear()+"-"+d.getMonth()+"-"+d.getDate()};
@@ -131,7 +131,7 @@ function render(){
     const second=r.status=="repondu"||r.status=="interesse";
     const body=fill(second?S.set.tpl2:S.set.tpl1,r);
     const lab=STATUS.find(s=>s[0]==r.status)[1];
-    const lock=r.status=="envoyer"&&full;
+    const lock=(r.status=="envoyer"&&full)||String(r.id).startsWith("demo");
     const dis=lock?' aria-disabled="true"':"";
     const main=r.status=="stop"?"":'<a class="btn go" target="_top" href="'+esc(smsHref(r.tel,body))+'"'+dis+">"+(second?"Ouvrir le 2ᵉ message":"Ouvrir Messages")+"</a>"+
       '<button class="btn" data-copy="tel" data-id="'+esc(r.id)+'">1. Copier le n°</button><button class="btn" data-copy="msg" data-id="'+esc(r.id)+'"'+dis+'>2. Copier le texte</button>'+
