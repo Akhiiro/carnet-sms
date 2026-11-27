@@ -211,6 +211,18 @@ $("csv").addEventListener("change",async e=>{
   S.filter="envoyer";render();
 });
 
+function importHash(){
+  const m=location.hash.match(/^#import=([A-Za-z0-9_-]+)$/);if(!m)return;
+  try{history.replaceState(null,"",location.pathname)}catch(e){}
+  let list;try{const b=atob(m[1].replace(/-/g,"+").replace(/_/g,"/"));list=JSON.parse(decodeURIComponent(escape(b)))}catch(e){$("where").textContent="Lien d'import illisible.";return}
+  if(!Array.isArray(list))return;
+  if(S.demo){S.rows=[];S.demo=false}
+  const have=new Set(S.rows.map(r=>r.tel));let n=0;
+  for(const a of list){const tel=toTel(a[4]);if(!tel||have.has(tel))continue;have.add(tel);
+    S.rows.push({id:"p"+tel,ent:String(a[0]||""),ville:String(a[1]||""),prenom:String(a[2]||""),nom:String(a[3]||""),tel,status:"envoyer",sentAt:null,addedAt:Date.now()+n});n++}
+  localSave();S.filter="envoyer";render();
+  $("where").textContent=n+" fiches importées sur ce téléphone.";
+}
 function start(){
   try{const i=localStorage.getItem("carnet-ios");if(i!==null)S.ios=i=="1"}catch(e){}
   S.rows=DEMO;loadSettingsUI();render();
@@ -220,7 +232,8 @@ function start(){
     const uid=user?await user.id():null;
     if(!db||!uid){
       try{const l=JSON.parse(localStorage.getItem("carnet-sms")||"null");if(l&&l.rows&&l.rows.length){S.rows=l.rows;S.set={...S.set,...l.set};S.demo=false;loadSettingsUI();render()}}catch(e){}
-      $("where").textContent="Fiches gardées uniquement sur ce téléphone.";return}
+      $("where").textContent="Fiches gardées uniquement sur ce téléphone.";
+      importHash();return}
     S.col=db.collection("data/users/"+uid).doc("carnet").collection("prospects");
     S.setRef=db.doc("data/users/"+uid+"/reglages");
     const t=setTimeout(()=>{$("where").textContent="Données pas encore joignables, réessaie dans un instant."},10000);
