@@ -88,8 +88,10 @@ textarea{min-height:96px}
     <textarea id="tpl1"></textarea>
     <div class="row"><button class="btn" data-preset="kube">Version Kube</button><button class="btn" data-preset="conforme">Version signée + stop</button></div>
     <p class="note">La loi demande en principe l'expéditeur et un moyen de refuser dans chaque SMS de prospection. À toi de choisir la version.</p>
-    <label for="tpl2">2ᵉ message, après un « oui »</label>
+    <label for="tpl2">2ᵉ message, réponse « oui c'est bien ça »</label>
     <textarea id="tpl2"></textarea>
+    <label for="tpl3">2ᵉ message, réponse « c'est à quel sujet ? »</label>
+    <textarea id="tpl3"></textarea>
     <div class="row">
       <div style="flex:1 1 160px"><label for="agence">Nom de l'agence</label><input type="text" id="agence"></div>
       <div style="flex:0 1 120px"><label for="quota">Quota / jour</label><input type="number" id="quota" min="1" max="50"></div>
@@ -104,7 +106,8 @@ textarea{min-height:96px}
 
 <script>
 {
-const S={rows:[],filter:"envoyer",set:{tpl1:"Bonjour, c'est bien {entreprise} ?",tpl2:"Merci ! Je suis Mathis, de {agence}. Quand vous êtes sur un chantier et que ça sonne, qui décroche ? J'installe un assistant qui répond à votre place, prend la demande et cale le RDV. Je vous appelle 10 min cette semaine pour vous montrer ? (stop si pas intéressé)",agence:"[agence]",quota:20},demo:true,col:null,setRef:null,ios:!/Android/i.test(navigator.userAgent)};
+const S={rows:[],filter:"envoyer",set:{tpl1:"Bonjour, c'est bien {entreprise} ?",tpl2:"Merci ! Je suis Mathis, j'installe chez les artisans du coin un assistant qui décroche quand vous êtes sur un chantier : il prend la demande, cale le RDV et vous envoie un SMS récap. Plus d'appel perdu. Ça vaut 10 min au téléphone cette semaine ?",tpl3:"Je suis Mathis, je suis basé à Villefranche. J'aide les artisans à ne plus perdre de clients quand ils ne peuvent pas décrocher : un assistant répond à votre place, note la demande et cale le RDV. Je peux vous appeler 10 min pour vous montrer ?",tplv:2,agence:"[agence]",quota:20},demo:true,col:null,setRef:null,ios:!/Android/i.test(navigator.userAgent)};
+const DEF={tpl2:S.set.tpl2,tpl3:S.set.tpl3};
 const STATUS=[["envoyer","À envoyer"],["envoye","Envoyé"],["repondu","A répondu"],["interesse","Intéressé"],["stop","Stop / refus"]];
 const DEMO=[["Plomberie Durand","Villefranche-sur-Saône","Julien","Durand","0639980001"],["Chauffage Bernard SARL","Anse","Sophie","Bernard","0639980002"],["Élec Saône Services","Belleville-en-Beaujolais","Karim","Haddad","0639980003"],["Toitures du Val","Trévoux","Pierre","Morel","0639980004"],["Thermique Lyon Nord","Neuville-sur-Saône","Claire","Fontaine","0639980005"]].map((r,i)=>({id:"demo"+i,ent:r[0],ville:r[1],prenom:r[2],nom:r[3],tel:r[4],status:i==1?"envoye":i==2?"repondu":"envoyer",sentAt:i==1?Date.now():null}));
 const $=id=>document.getElementById(id);
@@ -133,8 +136,9 @@ function render(){
     const lab=STATUS.find(s=>s[0]==r.status)[1];
     const lock=(r.status=="envoyer"&&full)||String(r.id).startsWith("demo");
     const dis=lock?' aria-disabled="true"':"";
-    const main=r.status=="stop"?"":'<a class="btn go" target="_top" href="'+esc(smsHref(r.tel,body))+'"'+dis+">"+(second?"Ouvrir le 2ᵉ message":"Ouvrir Messages")+"</a>"+
-      '<button class="btn" data-copy="tel" data-id="'+esc(r.id)+'">1. Copier le n°</button><button class="btn" data-copy="msg" data-id="'+esc(r.id)+'"'+dis+'>2. Copier le texte</button>'+
+    const main=r.status=="stop"?"":'<a class="btn go" target="_top" href="'+esc(smsHref(r.tel,body))+'"'+dis+">"+(second?"Ouvrir « oui c'est moi »":"Ouvrir Messages")+"</a>"+
+      '<button class="btn" data-copy="tel" data-id="'+esc(r.id)+'">1. Copier le n°</button><button class="btn" data-copy="msg" data-id="'+esc(r.id)+'"'+dis+'>2. Copier '+(second?"« oui c'est moi »":"le texte")+'</button>'+
+      (second?'<button class="btn" data-copy="msg3" data-id="'+esc(r.id)+'">2. Copier « quel sujet ? »</button><a class="btn" target="_top" href="'+esc(smsHref(r.tel,fill(S.set.tpl3,r)))+'">Ouvrir « quel sujet ? »</a>':"")+
       (r.status=="envoyer"?'<button class="btn" data-sent="'+esc(r.id)+'"'+dis+'>J\'ai envoyé ✓</button>':"");
     const call=r.status=="interesse"||r.status=="repondu"?'<a class="btn" target="_top" href="tel:'+esc(r.tel)+'">Appeler</a>':"";
     return '<article class="card"><div class="top"><div><div class="co">'+esc(r.ent)+'</div><div class="who">'+esc([r.prenom,r.nom].filter(Boolean).join(" "))+(r.ville?" · "+esc(r.ville):"")+'</div><div class="num">'+esc(fmt(r.tel))+'</div></div><span class="pill '+r.status+'">'+lab+"</span></div>"+
@@ -157,7 +161,7 @@ document.addEventListener("click",e=>{
   const a=e.target.closest("[data-sent]");if(a){const r=S.rows.find(x=>x.id==a.dataset.sent);if(r&&r.status=="envoyer")save(r,{status:"envoye",sentAt:Date.now()});return}
   const c=e.target.closest("[data-copy]");if(c){const r=S.rows.find(x=>x.id==c.dataset.id);if(!r)return;
     const second=r.status=="repondu"||r.status=="interesse";
-    const txt=c.dataset.copy=="tel"?r.tel:fill(second?S.set.tpl2:S.set.tpl1,r);copy(txt,c);return}
+    const txt=c.dataset.copy=="tel"?r.tel:c.dataset.copy=="msg3"?fill(S.set.tpl3,r):fill(second?S.set.tpl2:S.set.tpl1,r);copy(txt,c);return}
   const p=e.target.closest("[data-preset]");if(p){$("tpl1").value=PRESETS[p.dataset.preset];return}
 });
 const PRESETS={kube:"Bonjour, c'est bien {entreprise} ?",conforme:"Bonjour, c'est bien {entreprise} ? Mathis, de {agence}. Répondez stop si vous ne voulez plus de message."};
@@ -168,10 +172,10 @@ async function copy(txt,btn){
   btn.textContent=ok?"Copié ✓":"Copie impossible";setTimeout(()=>{btn.textContent=old},1500);
 }
 
-function loadSettingsUI(){$("tpl1").value=S.set.tpl1;$("tpl2").value=S.set.tpl2;$("agence").value=S.set.agence;$("quota").value=S.set.quota;$("ios").checked=S.ios}
+function loadSettingsUI(){$("tpl1").value=S.set.tpl1;$("tpl2").value=S.set.tpl2;$("tpl3").value=S.set.tpl3||"";$("agence").value=S.set.agence;$("quota").value=S.set.quota;$("ios").checked=S.ios}
 $("ios").addEventListener("change",e=>{S.ios=e.target.checked;try{localStorage.setItem("carnet-ios",S.ios?"1":"0")}catch(_){}render()});
 $("save").addEventListener("click",async()=>{
-  S.set={tpl1:$("tpl1").value,tpl2:$("tpl2").value,agence:$("agence").value.trim(),quota:Math.max(1,Math.min(50,+$("quota").value||20))};
+  S.set={tpl1:$("tpl1").value,tpl2:$("tpl2").value,tpl3:$("tpl3").value,tplv:2,agence:$("agence").value.trim(),quota:Math.max(1,Math.min(50,+$("quota").value||20))};
   render();$("saved").textContent="Enregistré.";
   try{ if(S.setRef) await S.setRef.set(S.set); else localSave(); }catch(e){$("saved").textContent="Non enregistré, réessaie."}
 });
@@ -211,6 +215,7 @@ $("csv").addEventListener("change",async e=>{
   S.filter="envoyer";render();
 });
 
+function mig(x){if(x.tplv!==2){x.tpl2=DEF.tpl2;x.tpl3=DEF.tpl3;x.tplv=2}return x}
 function importHash(){
   const m=location.hash.match(/^#import=([A-Za-z0-9_-]+)$/);if(!m)return;
   try{history.replaceState(null,"",location.pathname)}catch(e){}
@@ -231,13 +236,13 @@ function start(){
     const [db,user]=await Promise.all([use("db"),use("user")]);
     const uid=user?await user.id():null;
     if(!db||!uid){
-      try{const l=JSON.parse(localStorage.getItem("carnet-sms")||"null");if(l&&l.rows&&l.rows.length){S.rows=l.rows;S.set={...S.set,...l.set};S.demo=false;loadSettingsUI();render()}}catch(e){}
+      try{const l=JSON.parse(localStorage.getItem("carnet-sms")||"null");if(l&&l.rows&&l.rows.length){S.rows=l.rows;S.set=mig({...S.set,...l.set});S.demo=false;loadSettingsUI();render()}}catch(e){}
       $("where").textContent="Fiches gardées uniquement sur ce téléphone.";
       importHash();return}
     S.col=db.collection("data/users/"+uid).doc("carnet").collection("prospects");
     S.setRef=db.doc("data/users/"+uid+"/reglages");
     const t=setTimeout(()=>{$("where").textContent="Données pas encore joignables, réessaie dans un instant."},10000);
-    try{const s=await S.setRef.get();if(s.exists){S.set={...S.set,...s.data()};loadSettingsUI();render()}}catch(e){}
+    try{const s=await S.setRef.get();if(s.exists){S.set=mig({...S.set,...s.data()});loadSettingsUI();render()}}catch(e){}
     S.col.onSnapshot(snap=>{
       if(!snap.metadata.fromCache)clearTimeout(t);
       if(snap.empty){if(!snap.metadata.fromCache&&S.demo)render();return}
