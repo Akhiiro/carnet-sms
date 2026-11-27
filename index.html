@@ -59,6 +59,12 @@ label{display:block;font-size:14px;font-weight:500;margin:12px 0 4px}
 textarea,input[type=text],input[type=number]{width:100%;font:16px Inter,sans-serif;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
 textarea{min-height:96px}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.btn.ok{border-color:var(--ok);color:var(--ok)}
+.tabs button.hot:not([aria-pressed=true]){border-color:var(--yel);background:color-mix(in srgb,var(--yel) 35%,var(--bg))}
+#alert .btn{width:100%}
+.acts+.acts{margin-top:8px}
+.more{margin-top:10px;border:0;padding:0}
+.more summary{font-size:13px;font-weight:500;color:var(--soft);min-height:32px}
 .empty{text-align:center;color:var(--soft);padding:30px 10px}
 </style>
 </head>
@@ -79,6 +85,7 @@ textarea{min-height:96px}
   </section>
   <div class="banner" id="demo" hidden>Fiches d'EXEMPLE avec des numéros fictifs : ne pas envoyer. Importe ton CSV en bas de page pour les remplacer.</div>
 
+  <div id="alert" style="margin-top:12px" hidden></div>
   <nav class="tabs" id="tabs" aria-label="Filtrer"></nav>
   <main id="list"></main>
 
@@ -88,10 +95,8 @@ textarea{min-height:96px}
     <textarea id="tpl1"></textarea>
     <div class="row"><button class="btn" data-preset="kube">Version Kube</button><button class="btn" data-preset="conforme">Version signée + stop</button></div>
     <p class="note">La loi demande en principe l'expéditeur et un moyen de refuser dans chaque SMS de prospection. À toi de choisir la version.</p>
-    <label for="tpl2">2ᵉ message, réponse « oui c'est bien ça »</label>
+    <label for="tpl2">2ᵉ message, quand il a répondu</label>
     <textarea id="tpl2"></textarea>
-    <label for="tpl3">2ᵉ message, réponse « c'est à quel sujet ? »</label>
-    <textarea id="tpl3"></textarea>
     <div class="row">
       <div style="flex:1 1 160px"><label for="agence">Nom de l'agence</label><input type="text" id="agence"></div>
       <div style="flex:0 1 120px"><label for="quota">Quota / jour</label><input type="number" id="quota" min="1" max="50"></div>
@@ -106,9 +111,10 @@ textarea{min-height:96px}
 
 <script>
 {
-const S={rows:[],filter:"envoyer",set:{tpl1:"Bonjour, c'est bien {entreprise} ?",tpl2:"Merci ! Je suis Mathis, j'installe chez les artisans du coin un assistant qui décroche quand vous êtes sur un chantier : il prend la demande, cale le RDV et vous envoie un SMS récap. Plus d'appel perdu. Ça vaut 10 min au téléphone cette semaine ?",tpl3:"Je suis Mathis, je suis basé à Villefranche. J'aide les artisans à ne plus perdre de clients quand ils ne peuvent pas décrocher : un assistant répond à votre place, note la demande et cale le RDV. Je peux vous appeler 10 min pour vous montrer ?",tplv:2,agence:"[agence]",quota:20},demo:true,col:null,setRef:null,ios:!/Android/i.test(navigator.userAgent)};
-const DEF={tpl2:S.set.tpl2,tpl3:S.set.tpl3};
+const S={rows:[],filter:"envoyer",set:{tpl1:"Bonjour, c'est bien {entreprise} ?",tpl2:"Bonjour, c'est Mathis, je suis de Villefranche. Je travaille avec des artisans du coin qui en ont marre de passer leurs soirées sur les devis, les relances et les appels qu'ils n'ont pas pu prendre. Je ne vends pas un logiciel de plus. L'idée, c'est de regarder ensemble les tâches que vous refaites toutes les semaines, et de voir si on peut construire une solution qui colle à votre façon de travailler. Si gagner quelques heures par semaine vous parle, ça vaut 10 minutes au téléphone ?",tplv:3,agence:"[agence]",quota:20},demo:true,col:null,setRef:null,ios:!/Android/i.test(navigator.userAgent)};
+const DEF={tpl2:S.set.tpl2};
 const STATUS=[["envoyer","À envoyer"],["envoye","Envoyé"],["repondu","A répondu"],["interesse","Intéressé"],["stop","Stop / refus"]];
+const TABS=[["repondu","Ont répondu"],["envoyer","À envoyer"],["envoye","Envoyés"],["interesse","Intéressés"],["stop","Stop"]];
 const DEMO=[["Plomberie Durand","Villefranche-sur-Saône","Julien","Durand","0639980001"],["Chauffage Bernard SARL","Anse","Sophie","Bernard","0639980002"],["Élec Saône Services","Belleville-en-Beaujolais","Karim","Haddad","0639980003"],["Toitures du Val","Trévoux","Pierre","Morel","0639980004"],["Thermique Lyon Nord","Neuville-sur-Saône","Claire","Fontaine","0639980005"]].map((r,i)=>({id:"demo"+i,ent:r[0],ville:r[1],prenom:r[2],nom:r[3],tel:r[4],status:i==1?"envoye":i==2?"repondu":"envoyer",sentAt:i==1?Date.now():null}));
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -124,28 +130,35 @@ function render(){
   $("fill").style.width=Math.min(100,n/q*100)+"%";
   $("left").textContent=n>=q?"Quota atteint, reprends demain":(q-n)+" restants";
   const c=k=>S.rows.filter(r=>r.status==k).length;
+  const todo=S.rows.filter(r=>r.status=="repondu"&&!r.secondAt).length;
+  if(!S.demo&&!S.picked){S.picked=1;if(todo)S.filter="repondu"}
   $("tally").innerHTML=STATUS.slice(1).map(([k,l])=>"<span>"+l+" <b>"+c(k)+"</b></span>").join("");
-  $("tabs").innerHTML=STATUS.map(([k,l])=>'<button data-f="'+k+'" aria-pressed="'+(S.filter==k)+'">'+l+" · "+c(k)+"</button>").join("");
+  $("tabs").innerHTML=TABS.map(([k,l])=>'<button data-f="'+k+'" aria-pressed="'+(S.filter==k)+'"'+(k=="repondu"&&todo?' class="hot"':"")+'>'+l+" · "+c(k)+"</button>").join("");
   $("demo").hidden=!S.demo;
-  const rows=S.rows.filter(r=>r.status==S.filter);
+  $("alert").hidden=!todo||S.filter=="repondu";
+  $("alert").innerHTML=todo?'<button class="btn go" data-f="repondu">'+todo+(todo>1?" artisans ont répondu":" artisan a répondu")+" → envoyer le 2ᵉ message</button>":"";
+  const rows=S.rows.filter(r=>r.status==S.filter).sort((a,b)=>S.filter=="repondu"?((a.secondAt?1:0)-(b.secondAt?1:0)):0);
   if(!rows.length){$("list").innerHTML='<p class="empty">'+(S.rows.length?"Aucune fiche dans cet onglet.":"Aucune fiche. Importe ton CSV en bas de page.")+"</p>";return}
   const full=n>=q;
   $("list").innerHTML=rows.map(r=>{
-    const second=r.status=="repondu"||r.status=="interesse";
-    const body=fill(second?S.set.tpl2:S.set.tpl1,r);
-    const lab=STATUS.find(s=>s[0]==r.status)[1];
-    const lock=(r.status=="envoyer"&&full)||String(r.id).startsWith("demo");
-    const dis=lock?' aria-disabled="true"':"";
-    const main=r.status=="stop"?"":'<a class="btn go" target="_top" href="'+esc(smsHref(r.tel,body))+'"'+dis+">"+(second?"Ouvrir « oui c'est moi »":"Ouvrir Messages")+"</a>"+
-      '<button class="btn" data-copy="tel" data-id="'+esc(r.id)+'">1. Copier le n°</button><button class="btn" data-copy="msg" data-id="'+esc(r.id)+'"'+dis+'>2. Copier '+(second?"« oui c'est moi »":"le texte")+'</button>'+
-      (second?'<button class="btn" data-copy="msg3" data-id="'+esc(r.id)+'">2. Copier « quel sujet ? »</button><a class="btn" target="_top" href="'+esc(smsHref(r.tel,fill(S.set.tpl3,r)))+'">Ouvrir « quel sujet ? »</a>':"")+
-      (r.status=="envoyer"?'<button class="btn" data-sent="'+esc(r.id)+'"'+dis+'>J\'ai envoyé ✓</button>':"");
-    const call=r.status=="interesse"||r.status=="repondu"?'<a class="btn" target="_top" href="tel:'+esc(r.tel)+'">Appeler</a>':"";
-    return '<article class="card"><div class="top"><div><div class="co">'+esc(r.ent)+'</div><div class="who">'+esc([r.prenom,r.nom].filter(Boolean).join(" "))+(r.ville?" · "+esc(r.ville):"")+'</div><div class="num">'+esc(fmt(r.tel))+'</div></div><span class="pill '+r.status+'">'+lab+"</span></div>"+
-      (r.status=="stop"?'<p class="note">Ne plus jamais recontacter.</p>':'<div class="msg">'+esc(body)+"</div>")+
-      '<div class="acts">'+main+call+"</div>"+
-      '<div class="st">'+STATUS.map(([k,l])=>'<button data-id="'+esc(r.id)+'" data-s="'+k+'" aria-pressed="'+(r.status==k)+'">'+l+"</button>").join("")+"</div>"+
-      (lock?'<p class="note">Quota du jour atteint.</p>':"")+"</article>"}).join("");
+    const id=esc(r.id),demo=String(r.id).startsWith("demo");
+    const lab=r.status=="repondu"&&r.secondAt?"2ᵉ envoyé":STATUS.find(s=>s[0]==r.status)[1];
+    let body="",acts="";
+    const sendKit=(tpl,lock)=>{const t=fill(tpl,r),d=lock?' aria-disabled="true"':"";
+      return '<div class="msg">'+esc(t)+'</div><div class="acts"><a class="btn go" target="_top" href="'+esc(smsHref(r.tel,t))+'"'+d+'>Ouvrir Messages</a><button class="btn" data-copy="tel" data-id="'+id+'">Copier le n°</button><button class="btn" data-copy="'+(tpl==S.set.tpl2?"msg2":"msg1")+'" data-id="'+id+'"'+d+'>Copier le texte</button></div>'};
+    if(r.status=="envoyer"){const lock=full||demo;
+      body=sendKit(S.set.tpl1,lock)+'<div class="acts"><button class="btn ok" data-to="envoye" data-id="'+id+'"'+(lock?' aria-disabled="true"':"")+'>J\'ai envoyé ✓</button></div>'+(demo?'<p class="note">Fiche d\'exemple, envoi bloqué.</p>':full?'<p class="note">Quota du jour atteint.</p>':"")}
+    else if(r.status=="envoye"){
+      body='<div class="acts"><button class="btn go" data-to="repondu" data-id="'+id+'">Il a répondu → 2ᵉ message</button><button class="btn" data-to="stop" data-id="'+id+'">Stop / refus</button></div>'}
+    else if(r.status=="repondu"&&!r.secondAt){
+      body=sendKit(S.set.tpl2,demo)+'<div class="acts"><button class="btn ok" data-second="'+id+'">2ᵉ message envoyé ✓</button><button class="btn" data-to="stop" data-id="'+id+'">Stop / refus</button></div>'}
+    else if(r.status=="repondu"){
+      body='<p class="note">2ᵉ message envoyé. S\'il répond oui, appelle-le tout de suite.</p><div class="acts"><button class="btn go" data-to="interesse" data-id="'+id+'">Intéressé → appeler</button><a class="btn" target="_top" href="tel:'+esc(r.tel)+'">Appeler</a><button class="btn" data-to="stop" data-id="'+id+'">Stop / refus</button></div>'}
+    else if(r.status=="interesse"){
+      body='<div class="acts"><a class="btn go" target="_top" href="tel:'+esc(r.tel)+'">Appeler '+esc(fmt(r.tel))+'</a><button class="btn" data-copy="tel" data-id="'+id+'">Copier le n°</button></div>'}
+    else body='<p class="note">Ne plus jamais recontacter.</p>';
+    return '<article class="card"><div class="top"><div><div class="co">'+esc(r.ent)+'</div><div class="who">'+esc([r.prenom,r.nom].filter(Boolean).join(" "))+(r.ville?" · "+esc(r.ville):"")+'</div><div class="num">'+esc(fmt(r.tel))+'</div></div><span class="pill '+r.status+'">'+lab+"</span></div>"+body+
+      '<details class="more"><summary>Changer le statut</summary><div class="st">'+STATUS.map(([k,l])=>'<button data-id="'+id+'" data-s="'+k+'" aria-pressed="'+(r.status==k)+'">'+l+"</button>").join("")+"</div></details></article>"}).join("");
 }
 
 async function save(r,patch){
@@ -158,10 +171,10 @@ function localSave(){try{localStorage.setItem("carnet-sms",JSON.stringify({rows:
 document.addEventListener("click",e=>{
   const f=e.target.closest("[data-f]");if(f){S.filter=f.dataset.f;render();return}
   const s=e.target.closest("[data-s]");if(s){const r=S.rows.find(x=>x.id==s.dataset.id);if(r&&r.status!=s.dataset.s){const p={status:s.dataset.s};if(p.status=="envoye"&&!r.sentAt)p.sentAt=Date.now();save(r,p)}return}
-  const a=e.target.closest("[data-sent]");if(a){const r=S.rows.find(x=>x.id==a.dataset.sent);if(r&&r.status=="envoyer")save(r,{status:"envoye",sentAt:Date.now()});return}
+  const t=e.target.closest("[data-to]");if(t){const r=S.rows.find(x=>x.id==t.dataset.id);if(!r)return;const p={status:t.dataset.to};if(p.status=="envoye"&&!r.sentAt)p.sentAt=Date.now();if(p.status=="repondu")S.filter="repondu";save(r,p);return}
+  const g=e.target.closest("[data-second]");if(g){const r=S.rows.find(x=>x.id==g.dataset.second);if(r)save(r,{secondAt:Date.now()});return}
   const c=e.target.closest("[data-copy]");if(c){const r=S.rows.find(x=>x.id==c.dataset.id);if(!r)return;
-    const second=r.status=="repondu"||r.status=="interesse";
-    const txt=c.dataset.copy=="tel"?r.tel:c.dataset.copy=="msg3"?fill(S.set.tpl3,r):fill(second?S.set.tpl2:S.set.tpl1,r);copy(txt,c);return}
+    const txt=c.dataset.copy=="tel"?r.tel:fill(c.dataset.copy=="msg2"?S.set.tpl2:S.set.tpl1,r);copy(txt,c);return}
   const p=e.target.closest("[data-preset]");if(p){$("tpl1").value=PRESETS[p.dataset.preset];return}
 });
 const PRESETS={kube:"Bonjour, c'est bien {entreprise} ?",conforme:"Bonjour, c'est bien {entreprise} ? Mathis, de {agence}. Répondez stop si vous ne voulez plus de message."};
@@ -172,10 +185,10 @@ async function copy(txt,btn){
   btn.textContent=ok?"Copié ✓":"Copie impossible";setTimeout(()=>{btn.textContent=old},1500);
 }
 
-function loadSettingsUI(){$("tpl1").value=S.set.tpl1;$("tpl2").value=S.set.tpl2;$("tpl3").value=S.set.tpl3||"";$("agence").value=S.set.agence;$("quota").value=S.set.quota;$("ios").checked=S.ios}
+function loadSettingsUI(){$("tpl1").value=S.set.tpl1;$("tpl2").value=S.set.tpl2;$("agence").value=S.set.agence;$("quota").value=S.set.quota;$("ios").checked=S.ios}
 $("ios").addEventListener("change",e=>{S.ios=e.target.checked;try{localStorage.setItem("carnet-ios",S.ios?"1":"0")}catch(_){}render()});
 $("save").addEventListener("click",async()=>{
-  S.set={tpl1:$("tpl1").value,tpl2:$("tpl2").value,tpl3:$("tpl3").value,tplv:2,agence:$("agence").value.trim(),quota:Math.max(1,Math.min(50,+$("quota").value||20))};
+  S.set={tpl1:$("tpl1").value,tpl2:$("tpl2").value,tplv:3,agence:$("agence").value.trim(),quota:Math.max(1,Math.min(50,+$("quota").value||20))};
   render();$("saved").textContent="Enregistré.";
   try{ if(S.setRef) await S.setRef.set(S.set); else localSave(); }catch(e){$("saved").textContent="Non enregistré, réessaie."}
 });
@@ -215,7 +228,7 @@ $("csv").addEventListener("change",async e=>{
   S.filter="envoyer";render();
 });
 
-function mig(x){if(x.tplv!==2){x.tpl2=DEF.tpl2;x.tpl3=DEF.tpl3;x.tplv=2}return x}
+function mig(x){if(x.tplv!==3){x.tpl2=DEF.tpl2;delete x.tpl3;x.tplv=3}return x}
 function importHash(){
   const m=location.hash.match(/^#import=([A-Za-z0-9_-]+)$/);if(!m)return;
   try{history.replaceState(null,"",location.pathname)}catch(e){}
